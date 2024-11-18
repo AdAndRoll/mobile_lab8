@@ -1,10 +1,9 @@
 package com.example.myapplication
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
+import android.widget.*
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import com.example.myapplication.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -29,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private external fun deleteStringListManager(ptr: Long)
     private external fun addString(ptr: Long, newString: String)
     private external fun removeLastString(ptr: Long)
+    private external fun removeSpecificString(ptr: Long, targetString: String)
+    private external fun duplicateString(ptr: Long, targetString: String)
     private external fun getFormattedString(ptr: Long): String
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,68 +41,130 @@ class MainActivity : AppCompatActivity() {
         counterPtr = createCounter(10)
         stringListManagerPtr = createStringListManager()
 
-        // Инициализируем UI элементы для Counter
-        val counterTextView: TextView = binding.sampleText
-        val incrementButton: Button = Button(this).apply {
+        // Корневой макет для размещения элементов
+        val rootLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 16, 16, 16)
+        }
+        setContentView(rootLayout)
+
+        // --- UI для Counter ---
+        val counterTextView = TextView(this).apply {
+            text = "Counter: ${getCounterValue(counterPtr)}"
+            textSize = 18f
+        }
+        rootLayout.addView(counterTextView)
+
+        val incrementButton = Button(this).apply {
             text = "Add One"
         }
-        binding.root.addView(incrementButton)
+        rootLayout.addView(incrementButton)
 
-        val resetButton: Button = Button(this).apply {
+        val resetButton = Button(this).apply {
             text = "Reset Counter"
         }
-        binding.root.addView(resetButton)
+        rootLayout.addView(resetButton)
 
-        // Инициализируем UI элементы для StringListManager
-        val inputText: EditText = binding.inputText
-        val addWordButton: Button = Button(this).apply {
+        // --- UI для StringListManager ---
+        val inputText = EditText(this).apply {
+            hint = "Enter a word"
+        }
+        rootLayout.addView(inputText)
+
+        val buttonLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        val addWordButton = Button(this).apply {
             text = "Add Word"
         }
-        binding.root.addView(addWordButton)
+        buttonLayout.addView(addWordButton)
 
-        val removeWordButton: Button = Button(this).apply {
+        val removeWordButton = Button(this).apply {
             text = "Remove Last Word"
         }
-        binding.root.addView(removeWordButton)
+        buttonLayout.addView(removeWordButton)
 
-        val stringListTextView: TextView = TextView(this)
-        binding.root.addView(stringListTextView)
+        rootLayout.addView(buttonLayout)
 
-        // Обработчик для кнопки сброса счётчика
+        val stringListLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        rootLayout.addView(stringListLayout)
+
+        // --- Логика Counter ---
         resetButton.setOnClickListener {
             resetCounter(counterPtr)
             counterTextView.text = "Counter: ${getCounterValue(counterPtr)}"
         }
 
-        // Отображаем начальное значение счётчика
-        counterTextView.text = "Counter: ${getCounterValue(counterPtr)}"
-
-        // Обновляем значение счётчика при нажатии на кнопку
         incrementButton.setOnClickListener {
             incrementCounter(counterPtr)
             counterTextView.text = "Counter: ${getCounterValue(counterPtr)}"
         }
 
-        // Обработчик для кнопки добавления строки в StringListManager
+        // --- Логика StringListManager ---
         addWordButton.setOnClickListener {
             val word = inputText.text.toString().trim()
             if (word.isNotEmpty()) {
                 addString(stringListManagerPtr, word)
                 inputText.text.clear()
-                stringListTextView.text = getFormattedString(stringListManagerPtr)
+                updateStringListView(stringListLayout)
             } else {
                 inputText.error = "Word cannot be empty"
             }
         }
 
-        // Обработчик для кнопки удаления последнего слова из StringListManager
         removeWordButton.setOnClickListener {
             removeLastString(stringListManagerPtr)
-            stringListTextView.text = getFormattedString(stringListManagerPtr)
+            updateStringListView(stringListLayout)
         }
 
-        // Изначально выводим список строк
-        stringListTextView.text = getFormattedString(stringListManagerPtr)
+        updateStringListView(stringListLayout)
+    }
+
+    /**
+     * Обновляет список строк в интерфейсе.
+     */
+    private fun updateStringListView(layout: LinearLayout) {
+        layout.removeAllViews()
+        val words = getFormattedString(stringListManagerPtr)
+        if (words.isNotEmpty()) {
+            val wordList = words.split(", ").map { it.trim() }
+            wordList.forEach { word ->
+                val textView = TextView(this).apply {
+                    text = word
+                    textSize = 18f
+                    setPadding(10, 10, 10, 10)
+                    setOnClickListener { showWordOptions(word, layout) }
+                }
+                layout.addView(textView)
+            }
+        }
+    }
+
+    /**
+     * Показывает диалоговое окно с выбором действий для слова.
+     */
+    private fun showWordOptions(word: String, layout: LinearLayout) {
+        val options = arrayOf("Duplicate", "Remove")
+        AlertDialog.Builder(this)
+            .setTitle("Choose an action for \"$word\"")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> { // Duplicate
+                        duplicateString(stringListManagerPtr, word)
+                        Toast.makeText(this, "Duplicated \"$word\"", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> { // Remove
+                        removeSpecificString(stringListManagerPtr, word)
+                        Toast.makeText(this, "Removed \"$word\"", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                updateStringListView(layout)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroy() {

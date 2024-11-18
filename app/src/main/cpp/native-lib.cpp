@@ -4,15 +4,6 @@
 #include <sstream>
 #include <algorithm>
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_myapplication_MainActivity_stringFromJNI(
-        JNIEnv* env,
-        jobject /* this */) {
-    std::string hello = "Hello from C++";
-    return env->NewStringUTF(hello.c_str());
-}
-
-
 // Определяем класс Counter
 class Counter {
 private:
@@ -28,26 +19,46 @@ public:
     int GetValue() const {
         return x;
     }
+
     void Reset() {
         x = 0;
     }
 };
+
+// Определяем класс StringListManager
 class StringListManager {
 private:
     std::vector<std::string> strings;
-
+    int id =0;
 public:
     // Добавление строки в список
     void addString(const std::string &newString) {
         std::string lowerString = newString;
         std::transform(lowerString.begin(), lowerString.end(), lowerString.begin(), ::tolower);
         strings.push_back(lowerString);
+        this->id= this->id+1;
     }
 
     // Удаление последней добавленной строки
     void removeLastString() {
         if (!strings.empty()) {
             strings.pop_back();
+        }
+    }
+
+    // Удаление конкретной строки
+    void removeSpecificString(const std::string &targetString) {
+        auto it = std::find(strings.begin(), strings.end(), targetString);
+        if (it != strings.end()) {
+            strings.erase(it); // Удаляем только то слово, на которое было нажато
+        }
+    }
+
+    // Дублирование конкретной строки
+    void duplicateString(const std::string &targetString) {
+        auto it = std::find(strings.begin(), strings.end(), targetString);
+        if (it != strings.end()) {
+            strings.insert(it + 1, targetString); // Вставляем копию строки после исходной
         }
     }
 
@@ -72,62 +83,73 @@ public:
         return result;
     }
 };
+
+// JNI функции
+
+// Генерация строки "Hello from C++"
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_example_myapplication_MainActivity_stringFromJNI(
+        JNIEnv *env,
+        jobject /* this */) {
+    std::string hello = "Hello from C++";
+    return env->NewStringUTF(hello.c_str());
+}
+
+// --- Counter методы ---
+
 // Создание экземпляра Counter
-extern "C"
-JNIEXPORT jlong JNICALL
+extern "C" JNIEXPORT jlong JNICALL
 Java_com_example_myapplication_MainActivity_createCounter(JNIEnv *env, jobject, jint initialValue) {
     auto *counter = new Counter(initialValue);
     return reinterpret_cast<jlong>(counter);
 }
 
-// Увеличение счетчика
-extern "C"
-JNIEXPORT void JNICALL
+// Увеличение значения счётчика
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_myapplication_MainActivity_incrementCounter(JNIEnv *env, jobject, jlong instancePtr) {
     auto *counter = reinterpret_cast<Counter *>(instancePtr);
     counter->PlusOne();
 }
 
-// Получение значения счетчика
-extern "C"
-JNIEXPORT jint JNICALL
+// Получение значения счётчика
+extern "C" JNIEXPORT jint JNICALL
 Java_com_example_myapplication_MainActivity_getCounterValue(JNIEnv *env, jobject, jlong instancePtr) {
     auto *counter = reinterpret_cast<Counter *>(instancePtr);
     return counter->GetValue();
 }
 
-// Удаление экземпляра Counter
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_example_myapplication_MainActivity_deleteCounter(JNIEnv *env, jobject, jlong instancePtr) {
-    auto *counter = reinterpret_cast<Counter *>(instancePtr);
-    delete counter;
-}
-// Сброс значения счётчика до 0
-extern "C"
-JNIEXPORT void JNICALL
+// Сброс значения счётчика
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_myapplication_MainActivity_resetCounter(JNIEnv *env, jobject, jlong instancePtr) {
     auto *counter = reinterpret_cast<Counter *>(instancePtr);
     if (counter) {
         counter->Reset();
     }
 }
-extern "C" {
 
-// Создание экземпляра класса
-JNIEXPORT jlong JNICALL
+// Удаление экземпляра Counter
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_myapplication_MainActivity_deleteCounter(JNIEnv *env, jobject, jlong instancePtr) {
+    auto *counter = reinterpret_cast<Counter *>(instancePtr);
+    delete counter;
+}
+
+// --- StringListManager методы ---
+
+// Создание экземпляра StringListManager
+extern "C" JNIEXPORT jlong JNICALL
 Java_com_example_myapplication_MainActivity_createStringListManager(JNIEnv *env, jobject) {
     return reinterpret_cast<jlong>(new StringListManager());
 }
 
-// Удаление экземпляра класса
-JNIEXPORT void JNICALL
+// Удаление экземпляра StringListManager
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_myapplication_MainActivity_deleteStringListManager(JNIEnv *env, jobject, jlong ptr) {
     delete reinterpret_cast<StringListManager *>(ptr);
 }
 
 // Добавление строки в список
-JNIEXPORT void JNICALL
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_myapplication_MainActivity_addString(JNIEnv *env, jobject, jlong ptr, jstring newString) {
     const char *nativeString = env->GetStringUTFChars(newString, nullptr);
     auto *manager = reinterpret_cast<StringListManager *>(ptr);
@@ -137,8 +159,8 @@ Java_com_example_myapplication_MainActivity_addString(JNIEnv *env, jobject, jlon
     env->ReleaseStringUTFChars(newString, nativeString);
 }
 
-// Удаление последней строки
-JNIEXPORT void JNICALL
+// Удаление последней строки из списка
+extern "C" JNIEXPORT void JNICALL
 Java_com_example_myapplication_MainActivity_removeLastString(JNIEnv *env, jobject, jlong ptr) {
     auto *manager = reinterpret_cast<StringListManager *>(ptr);
     if (manager) {
@@ -146,8 +168,30 @@ Java_com_example_myapplication_MainActivity_removeLastString(JNIEnv *env, jobjec
     }
 }
 
-// Получение отформатированной строки
-JNIEXPORT jstring JNICALL
+// Удаление конкретной строки из списка
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_myapplication_MainActivity_removeSpecificString(JNIEnv *env, jobject, jlong ptr, jstring targetString) {
+    const char *nativeString = env->GetStringUTFChars(targetString, nullptr);
+    auto *manager = reinterpret_cast<StringListManager *>(ptr);
+    if (manager) {
+        manager->removeSpecificString(nativeString); // Удаление только того слова, которое выбрал пользователь
+    }
+    env->ReleaseStringUTFChars(targetString, nativeString);
+}
+
+// Дублирование строки в списке
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_myapplication_MainActivity_duplicateString(JNIEnv *env, jobject, jlong ptr, jstring targetString) {
+    const char *nativeString = env->GetStringUTFChars(targetString, nullptr);
+    auto *manager = reinterpret_cast<StringListManager *>(ptr);
+    if (manager) {
+        manager->duplicateString(nativeString);
+    }
+    env->ReleaseStringUTFChars(targetString, nativeString);
+}
+
+// Получение отформатированной строки со всеми элементами списка
+extern "C" JNIEXPORT jstring JNICALL
 Java_com_example_myapplication_MainActivity_getFormattedString(JNIEnv *env, jobject, jlong ptr) {
     auto *manager = reinterpret_cast<StringListManager *>(ptr);
     if (manager) {
@@ -156,4 +200,4 @@ Java_com_example_myapplication_MainActivity_getFormattedString(JNIEnv *env, jobj
     }
     return env->NewStringUTF("");
 }
-}
+
