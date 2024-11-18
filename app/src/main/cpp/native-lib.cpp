@@ -26,39 +26,60 @@ public:
 };
 
 // Определяем класс StringListManager
+
+
 class StringListManager {
 private:
-    std::vector<std::string> strings;
-    int id =0;
+    struct StringEntry {
+        std::string value;
+        int id;
+    };
+
+    std::vector<StringEntry> strings;
+    int idCounter = 0; // Уникальный идентификатор для каждой строки
+
+    // Функция для переиндексации всех строк
+    void reindexStrings() {
+        for (int i = 0; i < strings.size(); ++i) {
+            strings[i].id = i; // Обновляем ID для каждой строки
+        }
+    }
+
 public:
     // Добавление строки в список
     void addString(const std::string &newString) {
         std::string lowerString = newString;
         std::transform(lowerString.begin(), lowerString.end(), lowerString.begin(), ::tolower);
-        strings.push_back(lowerString);
-        this->id= this->id+1;
+        strings.push_back({lowerString, idCounter++});
     }
 
     // Удаление последней добавленной строки
     void removeLastString() {
         if (!strings.empty()) {
             strings.pop_back();
+            reindexStrings(); // Переиндексируем после удаления
         }
     }
 
-    // Удаление конкретной строки
-    void removeSpecificString(const std::string &targetString) {
-        auto it = std::find(strings.begin(), strings.end(), targetString);
+    // Удаление строки по ID
+    void removeSpecificString(int id) {
+        auto it = std::find_if(strings.begin(), strings.end(), [id](const StringEntry &entry) {
+            return entry.id == id;
+        });
         if (it != strings.end()) {
-            strings.erase(it); // Удаляем только то слово, на которое было нажато
+            strings.erase(it); // Удаляем строку по ID
+            reindexStrings(); // Переиндексируем после удаления
         }
     }
 
-    // Дублирование конкретной строки
-    void duplicateString(const std::string &targetString) {
-        auto it = std::find(strings.begin(), strings.end(), targetString);
+    // Дублирование строки по ID
+    void duplicateString(int id) {
+        auto it = std::find_if(strings.begin(), strings.end(), [id](const StringEntry &entry) {
+            return entry.id == id;
+        });
         if (it != strings.end()) {
-            strings.insert(it + 1, targetString); // Вставляем копию строки после исходной
+            strings.insert(it + 1, *it); // Вставляем копию строки после исходной
+            reindexStrings(); // Переиндексируем после дублирования
         }
     }
 
@@ -73,7 +94,7 @@ public:
             if (i > 0) {
                 oss << ", ";
             }
-            oss << strings[i];
+            oss << strings[i].value;
         }
 
         std::string result = oss.str();
@@ -82,7 +103,17 @@ public:
         }
         return result;
     }
+
+    // Получение ID строки по индексу
+    int getIdByIndex(int index) const {
+        if (index >= 0 && index < strings.size()) {
+            return strings[index].id;
+        }
+        return -1; // Если индекс выходит за границы, возвращаем -1
+    }
 };
+
+
 
 // JNI функции
 
@@ -168,26 +199,22 @@ Java_com_example_myapplication_MainActivity_removeLastString(JNIEnv *env, jobjec
     }
 }
 
-// Удаление конкретной строки из списка
+// Удаление конкретной строки по ID из списка
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_myapplication_MainActivity_removeSpecificString(JNIEnv *env, jobject, jlong ptr, jstring targetString) {
-    const char *nativeString = env->GetStringUTFChars(targetString, nullptr);
+Java_com_example_myapplication_MainActivity_removeSpecificString(JNIEnv *env, jobject, jlong ptr, jint targetId) {
     auto *manager = reinterpret_cast<StringListManager *>(ptr);
     if (manager) {
-        manager->removeSpecificString(nativeString); // Удаление только того слова, которое выбрал пользователь
+        manager->removeSpecificString(targetId); // Удаление строки по ID
     }
-    env->ReleaseStringUTFChars(targetString, nativeString);
 }
 
-// Дублирование строки в списке
+// Дублирование строки по ID в списке
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_myapplication_MainActivity_duplicateString(JNIEnv *env, jobject, jlong ptr, jstring targetString) {
-    const char *nativeString = env->GetStringUTFChars(targetString, nullptr);
+Java_com_example_myapplication_MainActivity_duplicateString(JNIEnv *env, jobject, jlong ptr, jint targetId) {
     auto *manager = reinterpret_cast<StringListManager *>(ptr);
     if (manager) {
-        manager->duplicateString(nativeString);
+        manager->duplicateString(targetId); // Дублирование строки по ID
     }
-    env->ReleaseStringUTFChars(targetString, nativeString);
 }
 
 // Получение отформатированной строки со всеми элементами списка
@@ -200,4 +227,14 @@ Java_com_example_myapplication_MainActivity_getFormattedString(JNIEnv *env, jobj
     }
     return env->NewStringUTF("");
 }
+// Добавление функции в StringListManager для получения ID строки по индексу
+extern "C" JNIEXPORT jint JNICALL
+Java_com_example_myapplication_MainActivity_getIdByIndex(JNIEnv *env, jobject, jlong ptr, jint index) {
+    auto *manager = reinterpret_cast<StringListManager *>(ptr);
+    if (manager) {
+        return manager->getIdByIndex(index); // Получаем ID строки по индексу
+    }
+    return -1; // Если индекс выходит за границы, возвращаем -1
+}
+
 

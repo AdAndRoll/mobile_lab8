@@ -28,9 +28,11 @@ class MainActivity : AppCompatActivity() {
     private external fun deleteStringListManager(ptr: Long)
     private external fun addString(ptr: Long, newString: String)
     private external fun removeLastString(ptr: Long)
-    private external fun removeSpecificString(ptr: Long, targetString: String)
-    private external fun duplicateString(ptr: Long, targetString: String)
+    private external fun removeSpecificString(ptr: Long, targetId: Int) // Удаление строки по ID
+    private external fun duplicateString(ptr: Long, targetId: Int) // Дублирование строки по ID
     private external fun getFormattedString(ptr: Long): String
+    private external fun getIdByIndex(ptr: Long, index: Int): Int
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,34 +133,34 @@ class MainActivity : AppCompatActivity() {
         val words = getFormattedString(stringListManagerPtr)
         if (words.isNotEmpty()) {
             val wordList = words.split(", ").map { it.trim() }
-            wordList.forEach { word ->
+            wordList.forEachIndexed { index, word ->
+                val id = getIdByIndex(stringListManagerPtr, index) // Получаем ID через JNI
                 val textView = TextView(this).apply {
                     text = word
                     textSize = 18f
                     setPadding(10, 10, 10, 10)
-                    setOnClickListener { showWordOptions(word, layout) }
+                    tag = id // Сохраняем ID в качестве тега
+                    setOnClickListener { showWordOptions(id, layout) }
                 }
                 layout.addView(textView)
             }
         }
     }
 
-    /**
-     * Показывает диалоговое окно с выбором действий для слова.
-     */
-    private fun showWordOptions(word: String, layout: LinearLayout) {
+
+    private fun showWordOptions(id: Int, layout: LinearLayout) {
         val options = arrayOf("Duplicate", "Remove")
         AlertDialog.Builder(this)
-            .setTitle("Choose an action for \"$word\"")
+            .setTitle("Choose an action for the word with ID: $id")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> { // Duplicate
-                        duplicateString(stringListManagerPtr, word)
-                        Toast.makeText(this, "Duplicated \"$word\"", Toast.LENGTH_SHORT).show()
+                        duplicateString(stringListManagerPtr, id)
+                        Toast.makeText(this, "Duplicated word with ID: $id", Toast.LENGTH_SHORT).show()
                     }
                     1 -> { // Remove
-                        removeSpecificString(stringListManagerPtr, word)
-                        Toast.makeText(this, "Removed \"$word\"", Toast.LENGTH_SHORT).show()
+                        removeSpecificString(stringListManagerPtr, id)
+                        Toast.makeText(this, "Removed word with ID: $id", Toast.LENGTH_SHORT).show()
                     }
                 }
                 updateStringListView(layout)
